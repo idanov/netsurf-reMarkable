@@ -84,5 +84,5 @@ After the build is complete, you can can start the container with `make clangd-s
 
 ## Related repositories
 
-- [libnsfb-reMarkable](https://github.com/alex0809/libnsfb-reMarkable): fork of libnsfb with reMarkable-specific code for drawing to the screen and input handling
-- [netsurf-base-reMarkable](https://github.com/alex0809/netsurf-base-reMarkable): fork of netsurf, with modifications to make it work better on the reMarkable
+- [libnsfb-reMarkable](https://github.com/idanov/libnsfb-reMarkable): fork of libnsfb with reMarkable-specific code for drawing to the screen and input handling
+- [netsurf-base-reMarkable](https://github.com/idanov/netsurf-base-reMarkable): fork of netsurf, with modifications to make it work better on the reMarkable
