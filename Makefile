@@ -44,7 +44,9 @@ build: ## Build netsurf in Docker container (volume mount build directory except
 # Workaround: clone all bind-mounted repositories outside the container,
 # because we need the folders to exist before the container starts for mounting them.
 # Only call setup if BUILD_DIR does not exist yet.
-	if [ ! -d $(BUILD_DIR) ]; then mkdir -p $(BUILD_DIR) && scripts/setup_local_development.sh versioned; fi
+	if [ ! -d $(BUILD_DIR)/libnsfb ] || [ ! -d $(BUILD_DIR)/netsurf ]; then \
+		mkdir -p $(BUILD_DIR) && scripts/setup_local_development.sh versioned; \
+	fi
 # chown the build directory volume to the current user, so the build can run as current user
 	docker run --rm \
 		--mount type=volume,source=netsurf-build,target=/opt/netsurf/build \

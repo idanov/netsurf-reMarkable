@@ -1,6 +1,29 @@
 FROM ghcr.io/toltec-dev/base:v3.1
 
-RUN apt-get update -y && apt-get install -y bison flex libexpat-dev libpng-dev git gperf automake libtool
+# GTK version build argument (default to 2)
+ARG NETSURF_GTK_MAJOR=2
+
+# Install common dependencies
+RUN apt-get update -y && apt-get install -y \
+    automake \
+    bison \
+    build-essential \
+    flex \
+    gperf \
+    git \
+    libcurl3-dev \
+    libexpat-dev \
+    libhtml-parser-perl \
+    libjpeg-dev \
+    libpng-dev \
+    libssl-dev \
+    libtool \
+    pkg-config
+
+# Install GTK packages based on NETSURF_GTK_MAJOR
+RUN apt-get update -y && apt-get install -y \
+    librsvg2-dev \
+    $([ "${NETSURF_GTK_MAJOR}" = "3" ] && echo "libgtk-3-dev" || echo "libgtk2.0-dev")
 
 # Build libiconv 1.16
 RUN echo "Building libiconv 1.16..." \

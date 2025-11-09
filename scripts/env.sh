@@ -23,150 +23,6 @@
 #
 
 ###############################################################################
-# OS Package installation
-###############################################################################
-
-# deb packages for dpkg based systems
-NS_DEV_DEB="build-essential pkg-config git gperf libcurl3-dev libpng-dev libjpeg-dev"
-NS_TOOL_DEB="flex bison libhtml-parser-perl"
-if [ "x${NETSURF_GTK_MAJOR}" = "x3" ]; then
-    NS_GTK_DEB="libgtk-3-dev librsvg2-dev"
-else
-    NS_GTK_DEB="libgtk2.0-dev librsvg2-dev"
-fi
-
-# apt get commandline to install necessary dev packages
-ns-apt-get-install()
-{
-    LIBCURL_OPENSSL_CONFLICTS="$(/usr/bin/apt-cache show libcurl4-openssl-dev | grep Conflicts | grep -o libssl1.0-dev)"
-    if [ "x${LIBCURL_OPENSSL_CONFLICTS}" != "x" ]; then
-        NS_DEV_DEB="${NS_DEV_DEB} libssl-dev"
-    elif /usr/bin/apt-cache show libssl1.0-dev >/dev/null 2>&1; then
-        NS_DEV_DEB="${NS_DEV_DEB} libssl1.0-dev"
-    else
-        NS_DEV_DEB="${NS_DEV_DEB} libssl-dev"
-    fi
-    sudo apt-get install $(echo ${NS_DEV_DEB} ${NS_TOOL_DEB} ${NS_GTK_DEB})
-}
-
-
-# packages for yum installer RPM based systems (tested on fedora 20)
-NS_DEV_YUM_RPM="git gcc pkgconfig expat-devel openssl-devel gperf libcurl-devel perl-Digest-MD5-File libjpeg-devel libpng-devel"
-NS_TOOL_YUM_RPM="flex bison"
-if [ "x${NETSURF_GTK_MAJOR}" = "x3" ]; then
-    NS_GTK_YUM_RPM="gtk3-devel librsvg2-devel"
-else
-    NS_GTK_YUM_RPM="gtk2-devel librsvg2-devel"
-fi
-
-# yum commandline to install necessary dev packages
-ns-yum-install()
-{
-    sudo yum -y install $(echo ${NS_DEV_YUM_RPM} ${NS_TOOL_YUM_RPM} ${NS_GTK_YUM_RPM})
-}
-
-
-# packages for dnf installer RPM based systems (tested on fedora 25)
-NS_DEV_DNF_RPM="java-1.8.0-openjdk-headless gcc clang pkgconfig libcurl-devel libjpeg-devel expat-devel libpng-devel openssl-devel gperf perl-HTML-Parser"
-NS_TOOL_DNF_RPM="git flex bison ccache screen"
-if [ "x${NETSURF_GTK_MAJOR}" = "x3" ]; then
-    NS_GTK_DNF_RPM="gtk3-devel"
-else
-    NS_GTK_DNF_RPM="gtk2-devel"
-fi
-
-# dnf commandline to install necessary dev packages
-ns-dnf-install()
-{
-    sudo dnf install $(echo ${NS_DEV_DNF_RPM} ${NS_TOOL_DNF_RPM} ${NS_GTK_DNF_RPM})
-}
-
-
-# packages for zypper installer RPM based systems (tested on openSUSE leap 42)
-NS_DEV_ZYP_RPM="java-1_8_0-openjdk-headless gcc clang pkgconfig libcurl-devel libjpeg-devel libexpat-devel libpng-devel openssl-devel gperf perl-HTML-Parser"
-NS_TOOL_ZYP_RPM="git flex bison gperf ccache screen"
-if [ "x${NETSURF_GTK_MAJOR}" = "x3" ]; then
-    NS_GTK_ZYP_RPM="gtk3-devel"
-else
-    NS_GTK_ZYP_RPM="gtk2-devel"
-fi
-
-# zypper commandline to install necessary dev packages
-ns-zypper-install()
-{
-    sudo zypper install -y $(echo ${NS_DEV_ZYP_RPM} ${NS_TOOL_ZYP_RPM} ${NS_GTK_ZYP_RPM})
-}
-
-
-# Packages for Haiku install
-
-# Haiku secondary arch suffix:
-# empty for primary (gcc2 on x86) or "_x86" for gcc4 secondary.
-HA=_x86
-
-NS_DEV_HPKG="devel:libcurl${HA} devel:libpng${HA} devel:libjpeg${HA} devel:libcrypto${HA} devel:libiconv${HA} devel:libexpat${HA} cmd:pkg_config${HA} cmd:gperf html_parser"
-
-# pkgman commandline to install necessary dev packages
-ns-pkgman-install()
-{
-    pkgman install $(echo ${NS_DEV_HPKG})
-}
-
-
-# MAC OS X
-NS_DEV_MACPORT="git expat openssl curl libjpeg-turbo libpng"
-
-ns-macport-install()
-{
-    PATH=/opt/local/bin:/opt/local/sbin:$PATH sudo /opt/local/bin/port install $(echo ${NS_DEV_MACPORT})
-}
-
-
-# packages for FreeBSD install
-NS_DEV_FREEBSDPKG="gmake curl"
-
-# FreeBSD package install
-ns-freebsdpkg-install()
-{
-    pkg install $(echo ${NS_DEV_FREEBSDPKG})
-}
-
-
-# generic for help text
-NS_DEV_GEN="git, gcc, pkgconfig, expat library, openssl library, libcurl, perl, perl MD5 digest, libjpeg library, libpng library"
-NS_TOOL_GEN="flex tool, bison tool"
-if [ "x${NETSURF_GTK_MAJOR}" = "x3" ]; then
-    NS_GTK_GEN="gtk+ 3 toolkit library, librsvg2 library"
-else
-    NS_GTK_GEN="gtk+ 2 toolkit library, librsvg2 library"
-fi
-
-# Generic OS package install
-#  looks for package managers and tries to use them if present
-ns-package-install()
-{
-    if [ -x "/usr/bin/zypper" ]; then
-        ns-zypper-install
-    elif [ -x "/usr/bin/apt-get" ]; then
-        ns-apt-get-install
-    elif [ -x "/usr/bin/dnf" ]; then
-        ns-dnf-install
-    elif [ -x "/usr/bin/yum" ]; then
-        ns-yum-install
-    elif [ -x "/bin/pkgman" ]; then
-        ns-pkgman-install
-    elif [ -x "/opt/local/bin/port" ]; then
-        ns-macport-install
-    elif [ -x "/usr/sbin/pkg" ]; then
-        ns-freebsdpkg-install
-    else
-        echo "Unable to determine OS packaging system in use."
-        echo "Please ensure development packages are installed for:"
-        echo ${NS_DEV_GEN}"," ${NS_TOOL_GEN}"," ${NS_GTK_GEN}
-    fi
-}
-
-###############################################################################
 # Setup environment
 ###############################################################################
 
@@ -185,7 +41,7 @@ if [ "x${BUILD}" = "x" ]; then
     if [ $? -eq 0 ];then
         BUILD=$(cc -dumpmachine)
     else
-       echo "Unable to locate a compiler. Perhaps run ns-package-install"
+       echo "Unable to locate a compiler. Perhaps run make image"
        return 1
     fi
 fi
@@ -236,11 +92,6 @@ if [ "x${USE_CPUS}" = "x" ]; then
     USE_CPUS="-j${NCPUS}"
 fi
 
-# The GTK version to build for (either 2 or 3 currently)
-if [ "x${NETSURF_GTK_MAJOR}" = "x" ]; then
-    NETSURF_GTK_MAJOR=2
-fi
-
 # report to user
 echo "BUILD=${BUILD}"
 echo "HOST=${HOST}"
@@ -252,7 +103,6 @@ export BUILD_PREFIX=${TARGET_WORKSPACE}/inst-${BUILD}
 export PKG_CONFIG_PATH=${PREFIX}/lib/pkgconfig:${PKG_CONFIG_PATH}::
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:${PREFIX}/lib
 export PATH=${PATH}:${BUILD_PREFIX}/bin
-export NETSURF_GTK_MAJOR
 
 # make tool
 if [ -z ${MAKE+x} ]; then
@@ -271,60 +121,10 @@ NS_INTERNAL_LIBS="libwapcaplet libparserutils libhubbub libdom libcss libnsgif l
 # The browser itself
 NS_BROWSER="netsurf"
 
-
-# add target specific libraries
-case "${HOST}" in
-    i586-pc-haiku)
-        # tools required to build the browser for haiku (beos)
-        NS_TOOLS="nsgenbind"
-        # libraries required for the haiku target abi
-        NS_FRONTEND_LIBS="libsvgtiny"
-        ;;
-    *arwin*)
-        # tools required to build the browser for OS X
-        NS_TOOLS=""
-        # libraries required for the Darwin target abi
-        NS_FRONTEND_LIBS="libsvgtiny libnsfb"
-        ;;
-    arm-unknown-riscos)
-        # tools required to build the browser for RISC OS
-        NS_TOOLS="nsgenbind"
-        # libraries required for the risc os target abi
-        NS_FRONTEND_LIBS="libsvgtiny librufl libpencil librosprite"
-        ;;
-    *-atari-mint)
-        # tools required to build the browser for atari
-        NS_TOOLS=""
-        # libraries required for the atari frontend
-        NS_FRONTEND_LIBS=""
-        ;;
-    ppc-amigaos)
-        # default tools required to build the browser
-        NS_TOOLS="nsgenbind"
-        # default additional internal libraries
-        NS_FRONTEND_LIBS="libsvgtiny"
-        ;;
-    m68k-unknown-amigaos)
-        # default tools required to build the browser
-        NS_TOOLS="nsgenbind"
-        # default additional internal libraries
-        NS_FRONTEND_LIBS="libsvgtiny"
-        ;;
-    *-unknown-freebsd*)
-        # tools required to build the browser for freebsd
-        NS_TOOLS=""
-        # libraries required for the freebsd frontend
-        NS_FRONTEND_LIBS=""
-        # select gnu make
-        MAKE=gmake
-        ;;
-    *)
-        # default tools required to build the browser
-        NS_TOOLS="nsgenbind"
-        # default additional internal libraries
-        NS_FRONTEND_LIBS="libsvgtiny libnsfb"
-        ;;
-esac
+# tools required to build the browser
+NS_TOOLS="nsgenbind"
+# additional internal libraries
+NS_FRONTEND_LIBS="libsvgtiny libnsfb"
 
 export MAKE
 
@@ -363,13 +163,13 @@ ns-clone()
 
             VERSION_REF="${REPO^^}_VERSION"
             VERSION="${!VERSION_REF}"
-            
+
             (cd ${TARGET_WORKSPACE} && git clone ${REPO_LOCATION}.git ${REPO}; )
             if [[ ! -z ${VERSION} ]]; then
                 echo "Checking out ${VERSION} of ${REPO}"
                 (cd ${TARGET_WORKSPACE}/${REPO} && git -c advice.detachedHead=false checkout ${VERSION}; )
             fi
-            
+
         fi
         echo
     done
