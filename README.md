@@ -34,25 +34,62 @@ The 'a' in the bottom-right corner screen toggles the keyboard.
 
 More usage information may be found on the [official NetSurf website](https://www.netsurf-browser.org/documentation/#User).
 
+### Screen Orientation
+
+NetSurf can be run in either portrait (default) or landscape mode. To change the orientation, edit the `~/.netsurf/Choices` file and set:
+
+```
+fb_orientation:landscape
+```
+
+or
+
+```
+fb_orientation:portrait
+```
+
+The default is portrait mode if the option is not specified. You will need to restart NetSurf for the change to take effect.
+
+**Note:** In landscape mode, the screen dimensions are 1872x1404 (swapped from portrait's 1404x1872), and touch/pen input is automatically adjusted to match the orientation.
+
 ### Local build and installation
 
 #### Requirements
 
-The build itself is done in a Docker container, so apart from Docker and make, there
+The build itself is done in a Docker container, so apart from Docker, make, and git, there
 should be no additional requirements.
 
 `make` prints a list of all available commands by default.
 
+#### Initial Setup
+
+> **⚠️ IMPORTANT:** This project uses git submodules for `netsurf` and `libnsfb`. You **MUST** initialize the submodules before building!
+
+After cloning this repository, run the following:
+
+```bash
+git submodule update --init
+```
+
+Or clone the repository with submodules in one step:
+```bash
+git clone --recurse-submodules <repository-url>
+```
+
 #### Build
 
-`make image` to build the Docker image with the toolchain, then `make build` to build netsurf.
-The resulting netsurf binary is `build/netsurf/nsfb`.
+`make image` to build the Docker image with all dependencies and toolchain. This only needs to be done once or when dependencies change.
+
+Then `make build` to build netsurf and libnsfb from the submodules.
+The resulting netsurf binary is `netsurf/nsfb`.
+
+The Docker image contains all pre-built dependencies, so rebuilding after changes to `netsurf` or `libnsfb` is fast - just run `make build` again.
 
 > MacOS note:
 > There is an [open issue](https://github.com/alex0809/netsurf-reMarkable/issues/21) with the build when using a bind-mounted build directory.
 > A workaround will be automatically enabled when running `make build` under MacOS, please see the ticket for details.
 
-#### Installation
+#### Installation to Device
 
 `make install` to build and then install the updated binary to the device.
 This will use `scp` to copy the binary and required files to the device.
@@ -71,18 +108,48 @@ opkg install dejavu-fonts-ttf-DejaVuSans dejavu-fonts-ttf-DejaVuSans-Bold dejavu
 
 ## Local development
 
+### Git Submodules Workflow
+
+The `netsurf` and `libnsfb` repositories are included as git submodules. This allows you to:
+- Make changes directly in the submodule directories
+- Commit and push changes to the forked repositories
+- Rebuild quickly without rebuilding the Docker image
+
+To make changes:
+1. Navigate to `netsurf/` or `libnsfb/` directory
+2. Make your changes and commit them
+3. Push to the respective repository
+4. Run `make build` to rebuild with your changes
+
+See [SUBMODULES.md](SUBMODULES.md) for detailed instructions on working with submodules.
+
+### Quick Development Setup
+
 `make checkout` to set up the workspace for local development.
-This will prepare the `build/` directory by cloning the HEAD of all forked code repositories.
+This will initialize the submodules with the HEAD of master branches.
 
-The build script (called when running `make build`) will only clone missing repositories,
-so any local changes will be picked up with the next build.
+Any local changes in the `netsurf/` or `libnsfb/` directories will be picked up with the next `make build`.
 
-To use clangd language server, you can run `make clangd-build`, which will prepare a Docker container
+### IDE Support (clangd)
+
+To use clangd language server, you can run `make clangd-build`, which will prepare a Docker container with
 clangd and compile-commands set up.
-After the build is complete, you can can start the container with `make clangd-start`, and access with
+After the build is complete, you can start the container with `make clangd-start`, and access with
 [clangd_docker.sh](scripts/clangd_docker.sh).
+
+## Architecture
+
+This project uses a multi-stage build approach:
+
+1. **Docker Image** (`make image`): Contains the complete reMarkable cross-compilation toolchain and all NetSurf dependencies (libwapcaplet, libparserutils, libhubbub, libdom, libcss, etc.). This is built once and cached.
+
+2. **Git Submodules**: The `netsurf` and `libnsfb` repositories are git submodules that are mounted into the Docker container at build time.
+
+3. **Build Script** (`make build`): Mounts the submodules into the container and runs `scripts/build.sh`, which builds both `libnsfb` and `netsurf`.
+
+This design allows for fast iteration: the heavy dependencies are pre-built in the Docker image, while the repositories you're actively developing are easy to modify and rebuild.
 
 ## Related repositories
 
-- [libnsfb-reMarkable](https://github.com/idanov/libnsfb-reMarkable): fork of libnsfb with reMarkable-specific code for drawing to the screen and input handling
-- [netsurf-base-reMarkable](https://github.com/idanov/netsurf-base-reMarkable): fork of netsurf, with modifications to make it work better on the reMarkable
+- [libnsfb-reMarkable](https://github.com/idanov/libnsfb-reMarkable): fork of libnsfb with reMarkable-specific code for drawing to the screen and input handling (included as submodule)
+- [netsurf-base-reMarkable](https://github.com/idanov/netsurf-base-reMarkable): fork of netsurf, with modifications to make it work better on the reMarkable (included as submodule)

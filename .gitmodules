@@ -1,0 +1,6 @@
+[submodule "netsurf"]
+	path = netsurf
+	url = git@github.com:idanov/netsurf-base-reMarkable.git
+[submodule "libnsfb"]
+	path = libnsfb
+	url = git@github.com:idanov/libnsfb-reMarkable.git

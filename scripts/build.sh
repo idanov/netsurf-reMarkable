@@ -1,40 +1,71 @@
 #!/bin/bash
 
-# Build script which sets up environment variables appropriately so cross-compilation
-# works inside the docker container.
+# Build script for NetSurf browser and libnsfb
+# This script builds both libnsfb and NetSurf browser.
+# All other dependencies and libraries are built in the Dockerfile.
 
-# This script should also be runnable on the host system itself, if SYSROOT is configured appropriately,
-# but that has not been tested.
+set -e
 
 SCRIPTPATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-HOST=arm-remarkable-linux-gnueabihf
 
-if [ -z "$TARGET_WORKSPACE" ]; then echo "TARGET_WORKSPACE is required, but not set." && exit 1; fi
+# Validate required environment variable
+if [ -z "$TARGET_WORKSPACE" ]; then
+    echo "ERROR: TARGET_WORKSPACE is required, but not set."
+    exit 1
+fi
 
-if [ -z "$MAKE" ]; then export MAKE=make; fi
+# Set USE_CPUS if not already set
+# In Docker container, read from temp file created during build
+# Otherwise calculate from number of CPUs
+if [ -z "$USE_CPUS" ]; then
+    if [ -f /tmp/use_cpus.txt ]; then
+        USE_CPUS=$(cat /tmp/use_cpus.txt)
+    else
+        NCPUS=$(getconf _NPROCESSORS_ONLN 2>/dev/null || getconf NPROCESSORS_ONLN 2>/dev/null || echo 1)
+        NCPUS=$((NCPUS * 2))
+        USE_CPUS="-j${NCPUS}"
+    fi
+fi
 
-source $SCRIPTPATH/versions.sh
-source $SCRIPTPATH/env.sh
+echo "Building libnsfb and NetSurf for reMarkable..."
+echo "TARGET_WORKSPACE: $TARGET_WORKSPACE"
+echo "PREFIX: $PREFIX"
+echo "HOST: $HOST"
 
-# Required so the netsurf make picks up the previously built libraries
-export CFLAGS="$CFLAGS -I$TARGET_WORKSPACE/inst-$HOST/include"
-export LDFLAGS="$LDFLAGS -L$TARGET_WORKSPACE/inst-$HOST/lib" 
-# freetype libs end up in /usr/local, so include that for pkg-config
-export PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR:$SYSROOT/usr/local/lib/pkgconfig"
+# Build libnsfb first
+echo "Building libnsfb..."
+cd $TARGET_WORKSPACE/libnsfb/
 
-# For local development, you can clone any repository into target workspace
-# before running this script
-ns-clone
-ns-make-tools install
-ns-make-libs install
+CFLAGS="-I/opt/x-tools/arm-remarkable-linux-gnueabihf/arm-remarkable-linux-gnueabihf/sysroot/usr/include/libevdev-1.0" \
+LDFLAGS="-L/opt/x-tools/arm-remarkable-linux-gnueabihf/arm-remarkable-linux-gnueabihf/sysroot/usr/lib -levdev" \
+${MAKE} PREFIX=${PREFIX} HOST=${HOST} $USE_CPUS install
 
+echo "libnsfb build complete!"
+
+# Build NetSurf for framebuffer target
+echo "Building NetSurf..."
 cd $TARGET_WORKSPACE/netsurf/
 
-# Would probably be nicer to to pkg_config libevdev in the netsurf Makefile,
-# but we are re-pulling that Makefile every build.
-# This works for now.
-export LDFLAGS="$LDFLAGS -levdev -lpthread"
-
+# libevdev and pthread are required for reMarkable input handling
 export CC="arm-remarkable-linux-gnueabihf-gcc"
 export STRIP="arm-remarkable-linux-gnueabihf-strip"
-$MAKE TARGET=framebuffer NETSURF_FB_FONTLIB=freetype NETSURF_STRIP_BINARY=YES NETSURF_USE_LIBICONV_PLUG=NO NETSURF_USE_DUKTAPE=NO NETSURF_REMARKABLE=YES
+export LDFLAGS="$LDFLAGS -levdev -lpthread"
+
+# Add sysroot /usr/local paths for freetype and other libraries
+SYSROOT="/opt/x-tools/arm-remarkable-linux-gnueabihf/arm-remarkable-linux-gnueabihf/sysroot"
+export CFLAGS="$CFLAGS -I${SYSROOT}/usr/local/include/freetype2 -I${SYSROOT}/usr/local/include"
+
+# Adjust PKG_CONFIG to find both PREFIX libraries and sysroot libraries
+export PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:${SYSROOT}/usr/local/lib/pkgconfig:${SYSROOT}/usr/lib/pkgconfig"
+export PKG_CONFIG_LIBDIR="${PREFIX}/lib/pkgconfig:${SYSROOT}/usr/local/lib/pkgconfig:${SYSROOT}/usr/lib/pkgconfig"
+
+${MAKE} TARGET=framebuffer \
+    NETSURF_FB_FONTLIB=freetype \
+    NETSURF_STRIP_BINARY=YES \
+    NETSURF_USE_LIBICONV_PLUG=NO \
+    NETSURF_USE_DUKTAPE=NO \
+    NETSURF_REMARKABLE=YES \
+    LDLIBS="-L${PREFIX}/lib -lnslog" \
+    $USE_CPUS
+
+echo "NetSurf build complete!"

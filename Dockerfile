@@ -12,6 +12,7 @@ RUN apt-get update -y && apt-get install -y \
     gperf \
     git \
     libcurl3-dev \
+    libevdev-dev \
     libexpat-dev \
     libhtml-parser-perl \
     libjpeg-dev \
@@ -100,3 +101,133 @@ RUN echo "Building libjpeg-turbo 2.0.90..." \
     && make install \
     && cd .. \
     && rm -rf libjpeg-turbo
+
+# Build and host architecture settings
+ENV HOST="arm-remarkable-linux-gnueabihf"
+ENV BUILD="x86_64-linux-gnu"
+ENV MAKE="make"
+
+# Set up USE_CPUS for parallel builds at build time
+# Can be overridden with --build-arg USE_CPUS=-jN
+ARG USE_CPUS
+RUN if [ -z "$USE_CPUS" ]; then \
+    NCPUS=$(getconf _NPROCESSORS_ONLN 2>/dev/null || getconf NPROCESSORS_ONLN 2>/dev/null || echo 1); \
+    NCPUS=$((NCPUS * 2)); \
+    echo "-j${NCPUS}"; \
+    else \
+    echo "$USE_CPUS"; \
+    fi > /tmp/use_cpus.txt && cat /tmp/use_cpus.txt
+
+ENV TARGET_WORKSPACE="/opt/netsurf/build"
+ENV PREFIX="${TARGET_WORKSPACE}/inst-${HOST}"
+ENV BUILD_PREFIX="${TARGET_WORKSPACE}/inst-${BUILD}"
+ENV PKG_CONFIG_PATH="${PREFIX}/lib/pkgconfig:/opt/x-tools/arm-remarkable-linux-gnueabihf/arm-remarkable-linux-gnueabihf/sysroot/usr/lib/pkgconfig"
+ENV PKG_CONFIG_LIBDIR="${PREFIX}/lib/pkgconfig:${SYSROOT}/usr/local/lib/pkgconfig"
+ENV PKG_CONFIG_SYSROOT_DIR="${PREFIX}"
+ENV LD_LIBRARY_PATH="${PREFIX}/lib"
+ENV PATH="${BUILD_PREFIX}/bin:${PATH}"
+ENV CFLAGS="-I${PREFIX}/include"
+ENV LDFLAGS="-L${PREFIX}/lib"
+
+RUN mkdir -p ${TARGET_WORKSPACE} ${PREFIX} ${BUILD_PREFIX}
+WORKDIR ${TARGET_WORKSPACE}
+
+# Build arguments for custom repository locations and versions
+ARG BUILDSYSTEM_REPOSITORY="git://git.netsurf-browser.org/buildsystem.git"
+ARG BUILDSYSTEM_VERSION="1fbac2b96208708bb6447a01f793248bc72e9ada"
+RUN git clone ${BUILDSYSTEM_REPOSITORY} buildsystem && \
+    (cd buildsystem && [ -n "${BUILDSYSTEM_VERSION}" ] && git checkout ${BUILDSYSTEM_VERSION} || true)
+# Build tools (for BUILD architecture) - equivalent to ns-make-tools install
+# Unset CHOST to prevent cross-compilation when building native tools
+RUN unset CHOST && make -C ${TARGET_WORKSPACE}/buildsystem PREFIX=${BUILD_PREFIX} HOST=${BUILD} $(cat /tmp/use_cpus.txt) install
+# Build buildsystem for HOST architecture (required by all libraries)
+RUN make -C ${TARGET_WORKSPACE}/buildsystem PREFIX=${PREFIX} HOST=${HOST} $(cat /tmp/use_cpus.txt) install
+
+# tools required to build the browser
+ARG NSGENBIND_REPOSITORY="git://git.netsurf-browser.org/nsgenbind.git"
+ARG NSGENBIND_VERSION="ecdd70336d64b21f57313c9c9e55e5f00f48f576"
+RUN git clone ${NSGENBIND_REPOSITORY} nsgenbind && \
+    (cd nsgenbind && [ -n "${NSGENBIND_VERSION}" ] && git checkout ${NSGENBIND_VERSION} || true)
+# Skip nsgenbind build - has compilation issues with .base64 assembler pseudo-op
+# This tool is only needed for JavaScript bindings, not for basic framebuffer build
+# RUN unset CHOST && make -C ${TARGET_WORKSPACE}/nsgenbind PREFIX=${BUILD_PREFIX} HOST=${BUILD} CFLAGS="-O0 -fno-lto" $(cat /tmp/use_cpus.txt) install
+
+# internal libraries all frontends require (order is important)
+ARG LIBWAPCAPLET_REPOSITORY="git://git.netsurf-browser.org/libwapcaplet.git"
+ARG LIBWAPCAPLET_VERSION="release/0.4.3"
+RUN git clone ${LIBWAPCAPLET_REPOSITORY} libwapcaplet && \
+    (cd libwapcaplet && [ -n "${LIBWAPCAPLET_VERSION}" ] && git checkout ${LIBWAPCAPLET_VERSION} || true)
+RUN make -C ${TARGET_WORKSPACE}/libwapcaplet PREFIX=${PREFIX} HOST=${HOST} $(cat /tmp/use_cpus.txt) install
+
+ARG LIBPARSERUTILS_REPOSITORY="git://git.netsurf-browser.org/libparserutils.git"
+ARG LIBPARSERUTILS_VERSION="d101b2bb6dc98050f8f1b04d9d2bfeeff5a120c7"
+RUN git clone ${LIBPARSERUTILS_REPOSITORY} libparserutils && \
+    (cd libparserutils && [ -n "${LIBPARSERUTILS_VERSION}" ] && git checkout ${LIBPARSERUTILS_VERSION} || true)
+RUN make -C ${TARGET_WORKSPACE}/libparserutils PREFIX=${PREFIX} HOST=${HOST} $(cat /tmp/use_cpus.txt) install
+
+ARG LIBHUBBUB_REPOSITORY="git://git.netsurf-browser.org/libhubbub.git"
+ARG LIBHUBBUB_VERSION="c4039d355598c9fabbdcc7ef5a663571ef40211d"
+RUN git clone ${LIBHUBBUB_REPOSITORY} libhubbub && \
+    (cd libhubbub && [ -n "${LIBHUBBUB_VERSION}" ] && git checkout ${LIBHUBBUB_VERSION} || true)
+RUN make -C ${TARGET_WORKSPACE}/libhubbub PREFIX=${PREFIX} HOST=${HOST} $(cat /tmp/use_cpus.txt) install
+
+ARG LIBDOM_REPOSITORY="git://git.netsurf-browser.org/libdom.git"
+ARG LIBDOM_VERSION="ac5f4ce817d1421798aa4b94daee8deb84e40f76"
+RUN git clone ${LIBDOM_REPOSITORY} libdom && \
+    (cd libdom && [ -n "${LIBDOM_VERSION}" ] && git checkout ${LIBDOM_VERSION} || true)
+RUN make -C ${TARGET_WORKSPACE}/libdom PREFIX=${PREFIX} HOST=${HOST} $(cat /tmp/use_cpus.txt) install
+
+ARG LIBCSS_REPOSITORY="git://git.netsurf-browser.org/libcss.git"
+ARG LIBCSS_VERSION="747cf5e859cd0f26c140c7687dca227f1e316781"
+RUN git clone ${LIBCSS_REPOSITORY} libcss && \
+    (cd libcss && [ -n "${LIBCSS_VERSION}" ] && git checkout ${LIBCSS_VERSION} || true)
+RUN make -C ${TARGET_WORKSPACE}/libcss PREFIX=${PREFIX} HOST=${HOST} $(cat /tmp/use_cpus.txt) install
+
+ARG LIBNSGIF_REPOSITORY="git://git.netsurf-browser.org/libnsgif.git"
+ARG LIBNSGIF_VERSION="f29bbfbc5cbfe36a0f4f98d84bf1f84d6e4ee1d4"
+RUN git clone ${LIBNSGIF_REPOSITORY} libnsgif && \
+    (cd libnsgif && [ -n "${LIBNSGIF_VERSION}" ] && git checkout ${LIBNSGIF_VERSION} || true)
+RUN make -C ${TARGET_WORKSPACE}/libnsgif PREFIX=${PREFIX} HOST=${HOST} $(cat /tmp/use_cpus.txt) install
+
+ARG LIBNSBMP_REPOSITORY="git://git.netsurf-browser.org/libnsbmp.git"
+ARG LIBNSBMP_VERSION="release/0.1.6"
+RUN git clone ${LIBNSBMP_REPOSITORY} libnsbmp && \
+    (cd libnsbmp && [ -n "${LIBNSBMP_VERSION}" ] && git checkout ${LIBNSBMP_VERSION} || true)
+RUN make -C ${TARGET_WORKSPACE}/libnsbmp PREFIX=${PREFIX} HOST=${HOST} $(cat /tmp/use_cpus.txt) install
+
+ARG LIBUTF8PROC_REPOSITORY="git://git.netsurf-browser.org/libutf8proc.git"
+ARG LIBUTF8PROC_VERSION="release/2.4.0-1"
+RUN git clone ${LIBUTF8PROC_REPOSITORY} libutf8proc && \
+    (cd libutf8proc && [ -n "${LIBUTF8PROC_VERSION}" ] && git checkout ${LIBUTF8PROC_VERSION} || true)
+RUN make -C ${TARGET_WORKSPACE}/libutf8proc PREFIX=${PREFIX} HOST=${HOST} $(cat /tmp/use_cpus.txt) install
+
+ARG LIBNSUTILS_REPOSITORY="git://git.netsurf-browser.org/libnsutils.git"
+ARG LIBNSUTILS_VERSION="release/0.1.0"
+RUN git clone ${LIBNSUTILS_REPOSITORY} libnsutils && \
+    (cd libnsutils && [ -n "${LIBNSUTILS_VERSION}" ] && git checkout ${LIBNSUTILS_VERSION} || true)
+RUN make -C ${TARGET_WORKSPACE}/libnsutils PREFIX=${PREFIX} HOST=${HOST} $(cat /tmp/use_cpus.txt) install
+
+ARG LIBNSPSL_REPOSITORY="git://git.netsurf-browser.org/libnspsl.git"
+ARG LIBNSPSL_VERSION="release/0.1.6"
+RUN git clone ${LIBNSPSL_REPOSITORY} libnspsl && \
+    (cd libnspsl && [ -n "${LIBNSPSL_VERSION}" ] && git checkout ${LIBNSPSL_VERSION} || true)
+RUN make -C ${TARGET_WORKSPACE}/libnspsl PREFIX=${PREFIX} HOST=${HOST} $(cat /tmp/use_cpus.txt) install
+
+ARG LIBNSLOG_REPOSITORY="git://git.netsurf-browser.org/libnslog.git"
+ARG LIBNSLOG_VERSION="release/0.1.3"
+RUN git clone ${LIBNSLOG_REPOSITORY} libnslog && \
+    (cd libnslog && [ -n "${LIBNSLOG_VERSION}" ] && git checkout ${LIBNSLOG_VERSION} || true)
+RUN make -C ${TARGET_WORKSPACE}/libnslog PREFIX=${PREFIX} HOST=${HOST} $(cat /tmp/use_cpus.txt) install
+
+ARG LIBSVGTINY_REPOSITORY="git://git.netsurf-browser.org/libsvgtiny.git"
+ARG LIBSVGTINY_VERSION="f66051cab457438eefd23e1e2c6e2197894b2d52"
+RUN git clone ${LIBSVGTINY_REPOSITORY} libsvgtiny && \
+    (cd libsvgtiny && [ -n "${LIBSVGTINY_VERSION}" ] && git checkout ${LIBSVGTINY_VERSION} || true)
+RUN make -C ${TARGET_WORKSPACE}/libsvgtiny PREFIX=${PREFIX} HOST=${HOST} $(cat /tmp/use_cpus.txt) install
+
+# Create a template of the build directory structure for volume mount initialization
+# This preserves the PREFIX directories (inst-*) that contain the build system and libraries
+RUN cp -r ${TARGET_WORKSPACE} ${TARGET_WORKSPACE}.template
+
+# libnsfb and netsurf are now git submodules and will be built via build.sh
+# They are mounted into the container at build time

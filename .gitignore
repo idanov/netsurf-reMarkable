@@ -2,3 +2,4 @@
 build/
 local/
 compile_commands.json
+.mise.toml
