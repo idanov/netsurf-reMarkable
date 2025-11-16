@@ -3,6 +3,10 @@ ca_bundle:/home/root/.netsurf/rootCA.pem
 fb_download_directory:/home/root/Downloads
 fb_xochitl_restart_command:systemctl restart remux
 
+# Screen orientation: "portrait" (1404x1872) or "landscape" (1872x1404)
+# Requires restart to take effect
+fb_orientation:portrait
+
 scale:100
 enable_javascript:1
 
