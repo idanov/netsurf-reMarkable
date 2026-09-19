@@ -135,6 +135,24 @@ rm2fb client shim to be loaded, with its server running. A manual invocation use
 The `a` in the bottom-right corner toggles the on-screen keyboard. Landscape mode
 uses 1872 by 1404 logical pixels and adjusts pen and touch coordinates.
 
+Finger taps and pen taps activate links, toolbar buttons, and the on-screen
+keyboard. One finger controls the pointer; additional fingers are ignored until
+all fingers lift. Small finger movement is treated as tap jitter, while a larger
+movement becomes a mouse drag. This does not implement pinch zoom or swipe scrolling.
+
+For input diagnostics, launch with `NETSURF_RM_INPUT_TRACE=1` in the environment.
+The backend writes the selected device names and axis ranges to stderr at startup,
+and tracing adds the source and logical coordinates of each mouse press/release.
+For example, on reMarkable 1:
+
+```sh
+NETSURF_RM_INPUT_TRACE=1 /home/root/.netsurf/nsfb -f remarkable
+```
+
+Use the normal launcher/display setup described above, including rm2fb on
+reMarkable 2. Device numbers can differ; match the touchscreen by its capabilities
+rather than assuming `/dev/input/event2`.
+
 `make uninstall INSTALL_DESTINATION=...` removes the entire device-side
 `/home/root/.netsurf/` directory, including your configuration. Back up any files
 you want to keep first.
@@ -145,6 +163,10 @@ Run `make test-bitmap` with a native C compiler to check RGB565 bitmap scaling
 in portrait and landscape without a tablet or Docker. The tests enable AddressSanitizer
 and UndefinedBehaviorSanitizer by default; set `HOST_CC` or `TEST_CFLAGS` to override
 the compiler or flags. See [the bitmap regression notes](libnsfb/test/README.md).
+
+Run `make test-input` to test the reMarkable event decoder and queue without a
+tablet. On macOS this uses the existing `netsurf-build` Docker image. On Linux it
+requires a native compiler, pkg-config, and libevdev development headers.
 
 ## Editor support
 

@@ -87,11 +87,6 @@ static int rm_initialise(nsfb_t *nsfb)
 		exit(1);
 	}
 	
-	/* Set the orientation in input_state to match fb_state */
-	input_state.orientation = fb_state.orientation;
-	DEBUG_LOG("rm_initialise: Set input orientation to %s",
-		  input_state.orientation == SCREEN_ORIENTATION_LANDSCAPE ? "landscape" : "portrait");
-	
 	nsfb->ptr = fb_state.mapped_fb;
 
 	return 0;

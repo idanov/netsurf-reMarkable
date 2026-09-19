@@ -51,3 +51,27 @@ Observed results with this harness:
 
 The native 120 × 120 control draws 14,399 black pixels both before and after.
 These are renderer tests, not a physical-tablet or end-to-end PNG loading test.
+
+## reMarkable input regression
+
+Run `make test-input` from the repository root. The harness compiles the production
+input decoder and event queue, then supplies synthetic Linux evdev frames without
+opening hardware. AddressSanitizer and UndefinedBehaviorSanitizer are enabled.
+The macOS Docker target disables LeakSanitizer because it runs under emulation;
+address and undefined-behavior checks remain enabled.
+
+Coverage includes RM1/RM2 portrait and landscape corner mappings, nonzero axis
+minima and clamping, taps in nonzero slots, repeated taps with omitted unchanged
+coordinates, finger jitter, dragging, multiple slots in one frame, primary-finger
+release and replacement, invalid slot indices, pen clicks and touch/pen ownership,
+libevdev synchronization after a lost release, queue growth after wraparound, and concurrent producer/consumer ordering.
+These tests verify decoding and delivery; physical touch alignment and visible
+button responses still require a tablet.
+
+Physical validation on a reMarkable 1 in landscape mode (Linux 5.4.70-v1.3.3-rm10x):
+the updated browser successfully followed a finger-tapped HTML link, followed the
+return link, and toggled a native HTML checkbox on a local page without JavaScript.
+The trace contained matching touch down/up pairs at the target coordinates.
+The input regression executable also passed on the tablet. Portrait, reMarkable 2,
+and pen behavior are covered by synthetic tests, but were not physically verified
+in this session.

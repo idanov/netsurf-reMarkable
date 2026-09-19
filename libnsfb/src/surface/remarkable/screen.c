@@ -39,14 +39,14 @@ static void *fb_async_redraw(void *context)
 			struct mxcfb_rect update_rect;
 			
 			/* Transform coordinates for landscape orientation */
-			/* In landscape mode, logical coordinates need to be rotated 90° CCW */
+			/* Match the RGB565 plotter: physical (1403 - y, x). */
 			/* Physical framebuffer is always 1404x1872 (portrait) */
-			/* Logical (x, y) -> Physical (y, 1872 - x) */
+			/* Rectangles have exclusive right/bottom edges. */
 			if (state->orientation == SCREEN_ORIENTATION_LANDSCAPE) {
-				int phys_x0 = state->next_update_y0;
-				int phys_y0 = 1872 - state->next_update_x1;
-				int phys_x1 = state->next_update_y1;
-				int phys_y1 = 1872 - state->next_update_x0;
+				int phys_x0 = 1404 - state->next_update_y1;
+				int phys_y0 = state->next_update_x0;
+				int phys_x1 = 1404 - state->next_update_y0;
+				int phys_y1 = state->next_update_x1;
 				
 				update_rect.left = phys_x0;
 				update_rect.top = phys_y0;

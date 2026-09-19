@@ -10,83 +10,55 @@
 #include "screen.h"
 
 #define EVENTS_DIR "/dev/input"
-
 #define RM1_MACHINE_NAME_1 "reMarkable 1.0"
 #define RM1_MACHINE_NAME_2 "reMarkable Prototype 1"
 #define RM2_MACHINE_NAME "reMarkable 2.0"
-
 #define MAX_EVENT_POLL_TIMEOUT_MS 250
 
+/* Raw axes are retained: evdev only sends values which have changed. */
 typedef struct input_single_state_s {
 	int tracking_id;
-	bool tracking_id_changed;
-
-	// these positions are already translated to screen coordinates
-	int position_x;
-	int position_y;
-	bool position_changed;
-
-	int orientation;
-	int distance;
-	int pressure;
-
-	int touch_major;
-	int touch_minor;
-	int width_major;
-	int width_minor;
+	int x, y;
 } input_single_state_t;
 
 typedef struct input_pen_state_s {
-	int min_x;
-	int max_x;
-	int min_y;
-	int max_y;
-
-	int distance;
-	int pressure;
-
-	// these positions are already translated to screen coordinates
-	int position_x;
-	int position_y;
-	bool position_changed;
-
+	int min_x, max_x, min_y, max_y;
+	int x, y;
 	bool touched;
-	bool touch_state_changed;
+	bool mouse_down;
 } input_pen_state_t;
 
 typedef struct input_multitouch_state_s {
-	int min_x;
-	int max_x;
-	int min_y;
-	int max_y;
-
+	int min_x, max_x, min_y, max_y;
 	int current_slot;
+	int num_slots;
 	input_single_state_t *slots;
+	int primary_slot;
+	int primary_tracking_id;
+	bool gesture_active;
+	bool dragging;
+	int press_x, press_y;
 } input_multitouch_state_t;
 
 typedef struct input_state_s {
 	enum { RM1, RM2 } model;
-
-	struct libevdev *pen_dev;
-	struct libevdev *gpio_dev;
-	struct libevdev *touch_dev;
-
+	struct libevdev *pen_dev, *gpio_dev, *touch_dev;
+	bool pen_sync, gpio_sync, touch_sync;
 	ring_buf_t events_buf;
 	input_multitouch_state_t multitouch_state;
 	input_pen_state_t pen_state;
-
 	bool poll_active;
-	bool events_requested;
+	pthread_mutex_t poll_mutex;
 	pthread_t poll_thread;
-
-	int screen_width;
-	int screen_height;
+	int screen_width, screen_height;
 	screen_orientation_t orientation;
+	bool trace;
+	bool pointer_valid;
+	int pointer_x, pointer_y;
 } input_state_t;
 
 int input_initialize(input_state_t *input_state, nsfb_t *nsfb);
 int input_finalize(input_state_t *input_state);
-bool input_get_next_event(input_state_t *input_state,
-			  nsfb_event_t *event,
+bool input_get_next_event(input_state_t *input_state, nsfb_event_t *event,
 			  int timeout);
 #endif

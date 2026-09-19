@@ -18,7 +18,7 @@ else
 	USE_VOLUME_MOUNT ?= NO
 endif
 
-.PHONY: help all clean build install uninstall image prepare-device copy-resources copy-binary remove-resources remove-binary clangd-build clangd-start clangd-stop check-sources test-bitmap
+.PHONY: help all clean build install uninstall image prepare-device copy-resources copy-binary remove-resources remove-binary clangd-build clangd-start clangd-stop check-sources test-bitmap test-input
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -27,6 +27,18 @@ all: help ## Print this help
 
 test-bitmap: ## Run host-side RGB565 bitmap regression tests with sanitizers
 	sh libnsfb/test/bitmap-scaling.sh
+
+test-input: ## Run reMarkable input regression tests (Docker on macOS)
+ifeq ($(UNAME_S), Darwin)
+	docker run --rm \
+	    --mount type=bind,source=$(MAKEFILE_DIR),target=/src,readonly \
+	    -e PKG_CONFIG_PATH= -e PKG_CONFIG_SYSROOT_DIR= \
+	    -e PKG_CONFIG_LIBDIR=/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/share/pkgconfig \
+	    -e ASAN_OPTIONS=detect_leaks=0 \
+	    netsurf-build:$(IMAGE_TAG) sh /src/libnsfb/test/remarkable-input.sh
+else
+	sh libnsfb/test/remarkable-input.sh
+endif
 
 clean: ## Clean build directory, build volume and clangd container
 	rm -rf $(BUILD_DIR)

@@ -1,23 +1,22 @@
 #ifndef RM_RING_BUF_H
 #define RM_RING_BUF_H
 
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdbool.h>
-#include <semaphore.h>
+#include <pthread.h>
+#include <time.h>
 
 typedef struct ring_buf_s {
-	void *head;
-	void *tail;
-	size_t capacity;
-	size_t elem_size;
-	sem_t count;
 	void *buffer;
-	void *buffer_end;
+	size_t capacity, elem_size;
+	size_t head, tail, used;
+	pthread_mutex_t mutex;
+	pthread_cond_t ready;
 } ring_buf_t;
 
-void ring_buf_init(ring_buf_t *buf, size_t capacity, size_t elem_size);
+bool ring_buf_init(ring_buf_t *buf, size_t capacity, size_t elem_size);
 void ring_buf_free(ring_buf_t *buf);
-bool ring_buf_wait(ring_buf_t *buf, void *item, struct timespec *timeout);
-bool ring_buf_write(ring_buf_t *buf, void *item);
+bool ring_buf_write(ring_buf_t *buf, const void *item);
+bool ring_buf_wait(ring_buf_t *buf, void *item, const struct timespec *timeout);
 
 #endif
