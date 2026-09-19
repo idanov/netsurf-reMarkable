@@ -353,8 +353,9 @@ static bool bitmap_scaled(nsfb_t *nsfb, const nsfb_bbox_t *loc,
 		set_dither = true;
 	}
 
-	/* get veritcal (y) and horizontal (x) scale factors; both integer
-	 * part and remainder */
+	/* Get vertical (y) and horizontal (x) scale factors. Remainders
+	 * use destination dimensions as denominators, not 16.16 fixed point.
+	 * Source row offsets use bmp_stride, which may include padding. */
 	dx = bmp_width / width;
 	dy = (bmp_height / height) * bmp_stride;
 	dxr = bmp_width % width;
@@ -404,8 +405,8 @@ static bool bitmap_scaled(nsfb_t *nsfb, const nsfb_bbox_t *loc,
 	                                        /* handle horizontal interpolation */
 	                                        xoff += dx;
 	                                        rx += dxr;
-	                                        if (rx >= 65536) {
-	                                                rx -= 65536;
+	                                        if (rx >= width) {
+	                                                rx -= width;
 	                                                xoff++;
 	                                        }
 	                                }
@@ -413,9 +414,9 @@ static bool bitmap_scaled(nsfb_t *nsfb, const nsfb_bbox_t *loc,
 	                                /* handle vertical interpolation */
 	                                yoff += dy;
 	                                ry += dyr;
-	                                if (ry >= 65536) {
-	                                        ry -= 65536;
-	                                        yoff += bmp_width;
+	                                if (ry >= height) {
+	                                        ry -= height;
+	                                        yoff += bmp_stride;
 	                                }
 	                        }
 	                } else {
@@ -434,8 +435,8 @@ static bool bitmap_scaled(nsfb_t *nsfb, const nsfb_bbox_t *loc,
 	                                        /* handle horizontal interpolation */
 	                                        xoff += dx;
 	                                        rx += dxr;
-	                                        if (rx >= 65536) {
-	                                                rx -= 65536;
+	                                        if (rx >= width) {
+	                                                rx -= width;
 	                                                xoff++;
 	                                        }
 	                                }
@@ -443,9 +444,9 @@ static bool bitmap_scaled(nsfb_t *nsfb, const nsfb_bbox_t *loc,
 	                                /* handle vertical interpolation */
 	                                yoff += dy;
 	                                ry += dyr;
-	                                if (ry >= 65536) {
-	                                        ry -= 65536;
-	                                        yoff += bmp_width;
+	                                if (ry >= height) {
+	                                        ry -= height;
+	                                        yoff += bmp_stride;
 	                                }
 	                        }
 	                }
@@ -483,8 +484,8 @@ static bool bitmap_scaled(nsfb_t *nsfb, const nsfb_bbox_t *loc,
 	                                        /* handle horizontal interpolation */
 	                                        xoff += dx;
 	                                        rx += dxr;
-	                                        if (rx >= 65536) {
-	                                                rx -= 65536;
+	                                        if (rx >= width) {
+	                                                rx -= width;
 	                                                xoff++;
 	                                        }
 	                                }
@@ -492,9 +493,9 @@ static bool bitmap_scaled(nsfb_t *nsfb, const nsfb_bbox_t *loc,
 	                                /* handle vertical interpolation */
 	                                yoff += dy;
 	                                ry += dyr;
-	                                if (ry >= 65536) {
-	                                        ry -= 65536;
-	                                        yoff += bmp_width;
+	                                if (ry >= height) {
+	                                        ry -= height;
+	                                        yoff += bmp_stride;
 	                                }
 
 	                        }
@@ -515,8 +516,8 @@ static bool bitmap_scaled(nsfb_t *nsfb, const nsfb_bbox_t *loc,
 	                                        /* handle horizontal interpolation */
 	                                        xoff += dx;
 	                                        rx += dxr;
-	                                        if (rx >= 65536) {
-	                                                rx -= 65536;
+	                                        if (rx >= width) {
+	                                                rx -= width;
 	                                                xoff++;
 	                                        }
 
@@ -525,9 +526,9 @@ static bool bitmap_scaled(nsfb_t *nsfb, const nsfb_bbox_t *loc,
 	                                /* handle vertical interpolation */
 	                                yoff += dy;
 	                                ry += dyr;
-	                                if (ry >= 65536) {
-	                                        ry -= 65536;
-	                                        yoff += bmp_width;
+	                                if (ry >= height) {
+	                                        ry -= height;
+	                                        yoff += bmp_stride;
 	                                }
 	                        }
 	                }

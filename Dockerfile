@@ -102,6 +102,22 @@ RUN echo "Building libjpeg-turbo 2.0.90..." \
     && cd .. \
     && rm -rf libjpeg-turbo
 
+# Build libpng 1.6.37 (static)
+RUN echo "Building libpng 1.6.37..." \
+    && export DEBIAN_FRONTEND=noninteractive \
+    && mkdir libpng \
+    && cd libpng \
+    && curl -L "https://download.sourceforge.net/libpng/libpng-1.6.37.tar.gz" -o libpng.tar.gz \
+    && echo "daeb2620d829575513e35fecc83f0d3791a620b9b93d800b763542ece9390fb4  libpng.tar.gz" > sha256sums \
+    && sha256sum -c sha256sums \
+    && tar --strip-components=1 -xf libpng.tar.gz \
+    && rm libpng.tar.gz sha256sums \
+    && ./configure --prefix=$SYSROOT/usr --host="$CHOST" --enable-static --disable-shared \
+    && make \
+    && make install \
+    && cd .. \
+    && rm -rf libpng
+
 # Build and host architecture settings
 ENV HOST="arm-remarkable-linux-gnueabihf"
 ENV BUILD="x86_64-linux-gnu"

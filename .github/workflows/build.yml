@@ -5,6 +5,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Test bitmap scaling
+        run: make test-bitmap
       - name: Build Docker image
         run: make image
       - name: Build

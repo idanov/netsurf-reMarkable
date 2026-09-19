@@ -18,12 +18,15 @@ else
 	USE_VOLUME_MOUNT ?= NO
 endif
 
-.PHONY: help all clean build install uninstall image prepare-device copy-resources copy-binary remove-resources remove-binary clangd-build clangd-start clangd-stop check-sources
+.PHONY: help all clean build install uninstall image prepare-device copy-resources copy-binary remove-resources remove-binary clangd-build clangd-start clangd-stop check-sources test-bitmap
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
 all: help ## Print this help
+
+test-bitmap: ## Run host-side RGB565 bitmap regression tests with sanitizers
+	sh libnsfb/test/bitmap-scaling.sh
 
 clean: ## Clean build directory, build volume and clangd container
 	rm -rf $(BUILD_DIR)

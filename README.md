@@ -139,6 +139,13 @@ uses 1872 by 1404 logical pixels and adjusts pen and touch coordinates.
 `/home/root/.netsurf/` directory, including your configuration. Back up any files
 you want to keep first.
 
+## Tests
+
+Run `make test-bitmap` with a native C compiler to check RGB565 bitmap scaling
+in portrait and landscape without a tablet or Docker. The tests enable AddressSanitizer
+and UndefinedBehaviorSanitizer by default; set `HOST_CC` or `TEST_CFLAGS` to override
+the compiler or flags. See [the bitmap regression notes](libnsfb/test/README.md).
+
 ## Editor support
 
 `make clangd-build` prepares a development container and compilation database.
