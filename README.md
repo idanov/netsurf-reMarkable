@@ -1,155 +1,147 @@
-# NetSurf-reMarkable [![Build for reMarkable](https://github.com/alex0809/netsurf-reMarkable/actions/workflows/build.yml/badge.svg)](https://github.com/alex0809/netsurf-reMarkable/actions/workflows/build.yml)[![rm1](https://img.shields.io/badge/rM1-supported-green)](https://remarkable.com/store/remarkable)[![rm2](https://img.shields.io/badge/rM2-supported-green)](https://remarkable.com/store/remarkable-2)[![opkg](https://img.shields.io/badge/OPKG-netsurf-blue)](https://toltec-dev.org/)
+# NetSurf for reMarkable
 
-NetSurf is a lightweight and portable open-source web browser. This project adapts NetSurf for the reMarkable E Ink tablet.
-This repository contains the code for to building and releasing new versions.
+A lightweight web browser for reMarkable 1 and 2, maintained as one project.
+The browser, framebuffer library, build scripts, and device configuration live
+in this repository. A normal clone contains all application source; no submodules
+or sibling checkouts are needed.
 
-## Installation
+## Source layout
 
-### Toltec
+| Path | Purpose |
+| --- | --- |
+| `netsurf/` | Browser engine and framebuffer UI |
+| `libnsfb/` | Framebuffer drawing, display refresh, pen and touch input |
+| `scripts/build.sh` | Builds the library, then the browser |
+| `Dockerfile` | Cross-compilation toolchain and third-party dependencies |
+| `example/Choices` | Starting configuration for the tablet |
 
-You can install neturf with [Toltec](https://toltec-dev.org) using the following command:
+Edit both source directories directly and commit changes from this repository.
+The original source revisions and licenses are recorded in [SOURCES.md](SOURCES.md).
+Third-party dependencies are still downloaded when building the Docker image;
+this is not an offline build.
 
-```
-opkg install netsurf
-```
+## Build
 
-### Github Release
+Install Docker, Git, and make. Docker must be running. Clone normally:
 
-On the [releases page](https://github.com/alex0809/netsurf-reMarkable/releases), you can find the latest release.
-The release assets contain a file `netsurf_[version]_rmall.ipk` that allows for easy installation on device.
-
-Example commands to download and install the ipk file:
-```
-version=0.4
-wget https://github.com/alex0809/netsurf-reMarkable/releases/download/v$version/netsurf_$version-1_rmall.ipk
-scp netsurf_$version-1_rmall.ipk root@10.11.99.1:
-ssh root@remarkable opkg install netsurf_$version-1_rmall.ipk
-```
-
-To install a different release change the `version=` line to the version number for the release you wish to install.
-
-## Usage
-
-The 'a' in the bottom-right corner screen toggles the keyboard.
-
-More usage information may be found on the [official NetSurf website](https://www.netsurf-browser.org/documentation/#User).
-
-### Screen Orientation
-
-NetSurf can be run in either portrait (default) or landscape mode. To change the orientation, edit the `~/.netsurf/Choices` file and set:
-
-```
-fb_orientation:landscape
+```sh
+git clone https://github.com/idanov/netsurf-reMarkable.git
+cd netsurf-reMarkable
 ```
 
-or
+Build the dependency image once, then build the application:
 
-```
-fb_orientation:portrait
-```
-
-The default is portrait mode if the option is not specified. You will need to restart NetSurf for the change to take effect.
-
-**Note:** In landscape mode, the screen dimensions are 1872x1404 (swapped from portrait's 1404x1872), and touch/pen input is automatically adjusted to match the orientation.
-
-### Local build and installation
-
-#### Requirements
-
-The build itself is done in a Docker container, so apart from Docker, make, and git, there
-should be no additional requirements.
-
-`make` prints a list of all available commands by default.
-
-#### Initial Setup
-
-> **⚠️ IMPORTANT:** This project uses git submodules for `netsurf` and `libnsfb`. You **MUST** initialize the submodules before building!
-
-After cloning this repository, run the following:
-
-```bash
-git submodule update --init
+```sh
+make image
+make build
 ```
 
-Or clone the repository with submodules in one step:
-```bash
-git clone --recurse-submodules <repository-url>
+On Apple Silicon, explicitly select the AMD64 toolchain image when creating it:
+
+```sh
+docker build --platform linux/amd64 -t netsurf-build:latest .
+make build
 ```
 
-#### Build
+Docker must support running AMD64 containers on that host. The result is the
+32-bit ARM Linux executable `netsurf/nsfb`, for running on the tablet.
+Subsequent edits to either source directory only require `make build`.
+JavaScript is currently disabled at compile time by `scripts/build.sh`.
 
-`make image` to build the Docker image with all dependencies and toolchain. This only needs to be done once or when dependencies change.
+On macOS, make automatically uses the `netsurf-build` Docker volume for installed
+dependencies. Source directories and their compiler outputs are still bind-mounted.
+On other hosts, opt into this mode with `make build USE_VOLUME_MOUNT=YES`.
+Use `BUILD_VOLUME=another-name` to select an independent dependency volume.
+When changing dependency versions in the image, use a new volume or remove the
+old one so its installed dependencies are refreshed.
 
-Then `make build` to build netsurf and libnsfb from the submodules.
-The resulting netsurf binary is `netsurf/nsfb`.
+Run `make` to list the available commands. `make clean` removes the top-level
+`build/` directory, dependency volume, and clangd container; it does not remove
+compiler outputs within `netsurf/` and `libnsfb/`.
 
-The Docker image contains all pre-built dependencies, so rebuilding after changes to `netsurf` or `libnsfb` is fast - just run `make build` again.
+## Install on a tablet
 
-> MacOS note:
-> There is an [open issue](https://github.com/alex0809/netsurf-reMarkable/issues/21) with the build when using a bind-mounted build directory.
-> A workaround will be automatically enabled when running `make build` under MacOS, please see the ticket for details.
+This port targets reMarkable 1 and 2. The reMarkable 2 requires an rm2fb display
+server and client shim compatible with its OS version. This repository does not
+install or configure that integration. Check your device's compatibility before
+installing a package manager or display service; see the
+[rm2fb documentation](https://github.com/ddvk/remarkable2-framebuffer) and
+[Toltec compatibility information](https://toltec-dev.org/).
 
-#### Installation to Device
+Once the build image exists and SSH access as root is configured:
 
-`make install` to build and then install the updated binary to the device.
-This will use `scp` to copy the binary and required files to the device.
-Device address used is by default `10.11.99.1` (i.e. reMarkable connected to your PC via USB), but can be overridden with the `INSTALL_DESTINATION` variable.
-The netsurf binary will be copied to `~/netsurf`, and the required resources are copied to `~/.netsurf`.
-
-The font files defined in the configuration file `~/.netsurf/Choices` must exist.
-You can either install the pre-configured fonts via opkg, or copy your own preferred fonts to the device and adapt the `Choices` file.
-
-Installation of pre-configured fonts:
+```sh
+make install INSTALL_DESTINATION=10.11.99.1
 ```
-opkg install dejavu-fonts-ttf-DejaVuSans dejavu-fonts-ttf-DejaVuSans-Bold dejavu-fonts-ttf-DejaVuSans-BoldOblique dejavu-fonts-ttf-DejaVuSans-Oblique dejavu-fonts-ttf-DejaVuSerif dejavu-fonts-ttf-DejaVuSerif-Bold dejavu-fonts-ttf-DejaVuSerif-Italic dejavu-fonts-ttf-DejaVuSansMono dejavu-fonts-ttf-DejaVuSansMono-Bold
+
+Replace the USB address with a Wi-Fi IP or SSH host alias if needed. An explicit
+`INSTALL_DESTINATION` overrides any local environment setting, including mise.
+The target builds the application, then copies:
+
+- The executable to `/home/root/.netsurf/nsfb`.
+- Resources directly into `/home/root/.netsurf/`.
+- The sample configuration to `/home/root/.netsurf/Choices.example`.
+
+On first installation, `Choices.example` is also copied to `Choices`. Subsequent
+installs preserve an existing `Choices`. Transfers use SSH and SCP, not rsync.
+For an already-built executable, use `make copy-resources copy-binary` with the
+same `INSTALL_DESTINATION` setting.
+
+Before launching, edit `/home/root/.netsurf/Choices`:
+
+- Set every `fb_face_*` entry to a font file that exists on your tablet. The sample
+  uses DejaVu fonts under `/opt/share/fonts/ttf-dejavu/`. You can copy your own fonts
+  and change these paths.
+- Set `ca_bundle` to an existing CA certificate bundle, such as
+  `/etc/ssl/certs/ca-certificates.crt` if present. The sample's `rootCA.pem` is not
+  supplied by this repository.
+- Adjust `fb_xochitl_restart_command` for your launcher. The sample assumes remux.
+- Start with `fb_orientation:portrait`, or set `landscape` and restart the browser.
+
+If you already have a compatible Toltec installation, the sample fonts can be
+installed with:
+
+```sh
+opkg install dejavu-fonts-ttf-DejaVuSans dejavu-fonts-ttf-DejaVuSans-Bold \
+  dejavu-fonts-ttf-DejaVuSans-BoldOblique dejavu-fonts-ttf-DejaVuSans-Oblique \
+  dejavu-fonts-ttf-DejaVuSerif dejavu-fonts-ttf-DejaVuSerif-Bold \
+  dejavu-fonts-ttf-DejaVuSerif-Italic dejavu-fonts-ttf-DejaVuSansMono \
+  dejavu-fonts-ttf-DejaVuSansMono-Bold
 ```
 
-`make uninstall` to remove the binary and other installed files from the device.
+The executable also requires compatible shared libraries on the tablet. Check
+for unresolved dependencies there with:
 
-## Local development
+```sh
+/lib/ld-linux-armhf.so.3 --list /home/root/.netsurf/nsfb
+```
 
-### Git Submodules Workflow
+The current build links against libraries including libevdev, libcurl, OpenSSL
+1.1, libpng, libexpat, and libuuid. Copying the executable does not install them.
 
-The `netsurf` and `libnsfb` repositories are included as git submodules. This allows you to:
-- Make changes directly in the submodule directories
-- Commit and push changes to the forked repositories
-- Rebuild quickly without rebuilding the Docker image
+## Run
 
-To make changes:
-1. Navigate to `netsurf/` or `libnsfb/` directory
-2. Make your changes and commit them
-3. Push to the respective repository
-4. Run `make build` to rebuild with your changes
+The browser command on the tablet is:
 
-See [SUBMODULES.md](SUBMODULES.md) for detailed instructions on working with submodules.
+```sh
+/home/root/.netsurf/nsfb -f remarkable
+```
 
-### Quick Development Setup
+Use a launcher that manages display ownership and restores the stock interface
+when the browser exits. On reMarkable 2, the launcher must also arrange for the
+rm2fb client shim to be loaded, with its server running. A manual invocation uses
+`LD_PRELOAD=/path/to/librm2fb_client.so` with the actual installed library path.
 
-`make checkout` to set up the workspace for local development.
-This will initialize the submodules with the HEAD of master branches.
+The `a` in the bottom-right corner toggles the on-screen keyboard. Landscape mode
+uses 1872 by 1404 logical pixels and adjusts pen and touch coordinates.
 
-Any local changes in the `netsurf/` or `libnsfb/` directories will be picked up with the next `make build`.
+`make uninstall INSTALL_DESTINATION=...` removes the entire device-side
+`/home/root/.netsurf/` directory, including your configuration. Back up any files
+you want to keep first.
 
-### IDE Support (clangd)
+## Editor support
 
-To use clangd language server, you can run `make clangd-build`, which will prepare a Docker container with
-clangd and compile-commands set up.
-After the build is complete, you can start the container with `make clangd-start`, and access with
-[clangd_docker.sh](scripts/clangd_docker.sh).
-
-## Architecture
-
-This project uses a multi-stage build approach:
-
-1. **Docker Image** (`make image`): Contains the complete reMarkable cross-compilation toolchain and all NetSurf dependencies (libwapcaplet, libparserutils, libhubbub, libdom, libcss, etc.). This is built once and cached.
-
-2. **Git Submodules**: The `netsurf` and `libnsfb` repositories are git submodules that are mounted into the Docker container at build time.
-
-3. **Build Script** (`make build`): Mounts the submodules into the container and runs `scripts/build.sh`, which builds both `libnsfb` and `netsurf`.
-
-This design allows for fast iteration: the heavy dependencies are pre-built in the Docker image, while the repositories you're actively developing are easy to modify and rebuild.
-
-## Related repositories
-
-- [libnsfb-reMarkable](https://github.com/idanov/libnsfb-reMarkable): fork of libnsfb with reMarkable-specific code for drawing to the screen and input handling (included as submodule)
-- [netsurf-base-reMarkable](https://github.com/idanov/netsurf-base-reMarkable): fork of netsurf, with modifications to make it work better on the reMarkable (included as submodule)
+`make clangd-build` prepares a development container and compilation database.
+Then use `make clangd-start` and [scripts/clangd_docker.sh](scripts/clangd_docker.sh)
+to access clangd. These commands use the same source directories as the normal
+build. `make clangd-stop` stops the container.

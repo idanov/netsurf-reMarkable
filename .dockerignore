@@ -1,0 +1,9 @@
+# Application sources are mounted by make build, not copied into the image.
+.git
+netsurf
+libnsfb
+build
+.cache
+local
+.mise.toml
+compile_commands.json

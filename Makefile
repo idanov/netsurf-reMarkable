@@ -5,6 +5,7 @@ GID ?= $(shell id -g)
 MAKEFILE_PATH ?= $(abspath $(lastword $(MAKEFILE_LIST)))
 MAKEFILE_DIR ?= $(dir $(MAKEFILE_PATH))
 BUILD_DIR ?= build
+BUILD_VOLUME ?= netsurf-build
 export BUILD_DIR
 INSTALL_DESTINATION ?= 10.11.99.1
 IMAGE_TAG ?= latest
@@ -17,7 +18,7 @@ else
 	USE_VOLUME_MOUNT ?= NO
 endif
 
-.PHONY: help all clean build install uninstall image copy-resources copy-binary remove-resources remove-binary checkout clangd-build clangd-start clangd-stop check-submodules
+.PHONY: help all clean build install uninstall image prepare-device copy-resources copy-binary remove-resources remove-binary clangd-build clangd-start clangd-stop check-sources
 
 help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -26,20 +27,17 @@ all: help ## Print this help
 
 clean: ## Clean build directory, build volume and clangd container
 	rm -rf $(BUILD_DIR)
-	docker volume rm -f netsurf-build
+	docker volume rm -f $(BUILD_VOLUME)
 	docker rm -f $(CLANGD_CONTAINER)
 
-check-submodules: ## Check if submodules are initialized
+check-sources: ## Check that the browser and framebuffer sources are present
 	@if [ ! -f netsurf/Makefile ] || [ ! -f libnsfb/Makefile ]; then \
-		echo "Error: Git submodules are not initialized!"; \
-		echo ""; \
-		echo "Please run:"; \
-		echo "  git submodule update --init"; \
+		echo "Error: netsurf/ and libnsfb/ must contain the sources from this repository."; \
 		exit 1; \
 	fi
 
 ifeq ($(USE_VOLUME_MOUNT), NO)
-build: check-submodules ## Build netsurf in Docker container (bind mount netsurf and libnsfb submodules)
+build: check-sources ## Build the browser and framebuffer library in Docker
 	docker run --rm \
 	    --mount type=bind,source=$(MAKEFILE_DIR)/scripts,target=/opt/netsurf/scripts,readonly \
 	    --mount type=bind,source=$(MAKEFILE_DIR)/netsurf,target=/opt/netsurf/build/netsurf \
@@ -48,11 +46,11 @@ build: check-submodules ## Build netsurf in Docker container (bind mount netsurf
 	    --user=$(UID):$(GID) netsurf-build:$(IMAGE_TAG) \
 	    /opt/netsurf/scripts/build.sh
 else
-build: check-submodules ## Build netsurf in Docker container (volume mount for build artifacts, bind mount submodules, select with USE_VOLUME_MOUNT=YES)
+build: check-sources ## Build in Docker with a dependency volume (default on macOS)
 	$(info Using volume mount for build directory)
 # Initialize the volume with PREFIX directories from the Docker image if they don't exist
 	docker run --rm \
-		--mount type=volume,source=netsurf-build,target=/opt/netsurf/build \
+		--mount type=volume,source=$(BUILD_VOLUME),target=/opt/netsurf/build \
 	    netsurf-build:$(IMAGE_TAG) \
 		sh -c "if [ ! -d /opt/netsurf/build/inst-arm-remarkable-linux-gnueabihf/share ]; then \
 			echo 'Initializing build volume with build system files...'; \
@@ -60,7 +58,7 @@ build: check-submodules ## Build netsurf in Docker container (volume mount for b
 		fi && chown -R $(UID):$(GID) /opt/netsurf/build"
 	docker run --rm \
 	    --mount type=bind,source=$(MAKEFILE_DIR)/scripts,target=/opt/netsurf/scripts,readonly \
-	    --mount type=volume,source=netsurf-build,target=/opt/netsurf/build \
+	    --mount type=volume,source=$(BUILD_VOLUME),target=/opt/netsurf/build \
 	    --mount type=bind,source=$(MAKEFILE_DIR)/netsurf,target=/opt/netsurf/build/netsurf \
 	    --mount type=bind,source=$(MAKEFILE_DIR)/libnsfb,target=/opt/netsurf/build/libnsfb \
 	    -e TARGET_WORKSPACE=/opt/netsurf/build \
@@ -68,30 +66,33 @@ build: check-submodules ## Build netsurf in Docker container (volume mount for b
 	    /opt/netsurf/scripts/build.sh
 endif
 
-install: image build copy-resources copy-binary ## Build and copy binary and resources to device
+install: build ## Build and copy binary and resources to device (requires make image first)
+	$(MAKE) copy-resources copy-binary
 
 uninstall: remove-resources remove-binary ## Uninstall binary and resources from device
 
 image: ## Build the Docker image that is used for building netsurf
 	docker build -t netsurf-build:$(IMAGE_TAG) .
 
-copy-resources: ## Copy resources to device
-	scp -r netsurf/frontends/framebuffer/res root@$(INSTALL_DESTINATION):/home/root/.netsurf/
-	scp example/Choices root@$(INSTALL_DESTINATION):/home/root/.netsurf/
+prepare-device:
+	ssh root@$(INSTALL_DESTINATION) mkdir -p /home/root/.netsurf /home/root/Downloads
 
-copy-binary: ## Copy binary to device
-	rsync netsurf/nsfb root@$(INSTALL_DESTINATION):/home/root/.netsurf/
+copy-resources: prepare-device ## Copy resources and an example configuration to device
+	scp -r netsurf/frontends/framebuffer/res/. root@$(INSTALL_DESTINATION):/home/root/.netsurf/
+	scp example/Choices root@$(INSTALL_DESTINATION):/home/root/.netsurf/Choices.example
+	ssh root@$(INSTALL_DESTINATION) 'if [ ! -f /home/root/.netsurf/Choices ]; then cp /home/root/.netsurf/Choices.example /home/root/.netsurf/Choices; fi'
+
+copy-binary: prepare-device ## Copy binary to device
+	scp netsurf/nsfb root@$(INSTALL_DESTINATION):/home/root/.netsurf/nsfb
+	ssh root@$(INSTALL_DESTINATION) chmod +x /home/root/.netsurf/nsfb
 
 remove-resources: ## Remove resources from device
 	ssh root@$(INSTALL_DESTINATION) rm -rf /home/root/.netsurf
 
 remove-binary: ## Remove binary from device
-	ssh root@$(INSTALL_DESTINATION) rm -f /home/root/netsurf
+	ssh root@$(INSTALL_DESTINATION) rm -f /home/root/.netsurf/nsfb
 
-checkout: clean ## [Dev] Clean build directory and check out HEAD of forked repositories
-	scripts/setup_local_development.sh head
-
-clangd-build: check-submodules ## [Dev] Prepare local dev container with clangd and compile-commands.json (Note: run checkout first to use HEAD)
+clangd-build: check-sources ## [Dev] Prepare local dev container with clangd and compile-commands.json
 	mkdir -p $(BUILD_DIR)
 	docker rm -f $(CLANGD_CONTAINER)
 	docker build -t netsurf-localdev -f Dockerfile.localdev .
@@ -111,7 +112,7 @@ clangd-build: check-submodules ## [Dev] Prepare local dev container with clangd 
 		--user=$(UID):$(GID) netsurf-localdev:latest \
 		sh -c "cd /opt/netsurf/build && /opt/netsurf/scripts/build.sh"
 
-clangd-start: check-submodules ## [Dev] Start the local development docker container with clangd set up
+clangd-start: check-sources ## [Dev] Start the local development docker container with clangd set up
 	$(info To access clangd-container, you can use scripts/clangd_docker.sh.)
 	docker run --detach --name netsurf-clangd \
 		--mount type=bind,source=$(MAKEFILE_DIR)/scripts,target=/opt/netsurf/scripts \

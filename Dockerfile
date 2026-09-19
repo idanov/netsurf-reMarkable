@@ -229,5 +229,5 @@ RUN make -C ${TARGET_WORKSPACE}/libsvgtiny PREFIX=${PREFIX} HOST=${HOST} $(cat /
 # This preserves the PREFIX directories (inst-*) that contain the build system and libraries
 RUN cp -r ${TARGET_WORKSPACE} ${TARGET_WORKSPACE}.template
 
-# libnsfb and netsurf are now git submodules and will be built via build.sh
+# libnsfb and netsurf are source directories in this repository, built via build.sh
 # They are mounted into the container at build time
